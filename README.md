@@ -1,257 +1,104 @@
-# jjunmo-fastapi 보일러플레이트
+# Understand-Anything 데모
 
-범용 FastAPI 프로젝트 보일러플레이트 템플릿.
-Spring Boot 스타일 레이어드 아키텍처 + FastAPI 공식 템플릿의 장점을 결합한 구조로, 새 프로젝트를 시작할 때 이 템플릿을 복사하여 바로 사용할 수 있다.
+[Understand-Anything](https://github.com/Lum1104/Understand-Anything) 도구를 소개하는 **세미나용 데모 저장소**입니다.
+코드베이스를 인터랙티브 지식 그래프로 변환하는 도구가 실제로 어떤 결과를 내는지 보여주기 위해 만들어졌습니다.
 
-## 기술 스택
+> **이 repo의 목적**: "도구를 도입하자"가 아니라 **"이런 기술이 있더라"는 지식 공유**.
+> 실제 운영 코드(`aiapp-service`)를 외부 LLM에 보내지 않고, **동일한 아키텍처를 본뜬 데모 코드**에 도구를 돌려 체감을 전달합니다.
 
-| 기술 | 설명 |
-|------|------|
-| **FastAPI** | 비동기 웹 프레임워크 |
-| **SQLAlchemy 2.0** | ORM (Sync + Async 이중 지원) |
-| **Alembic** | DB 마이그레이션 |
-| **Pydantic v2** | 데이터 검증 + Settings 관리 |
-| **loguru** | 구조화 로깅 (환경별 포맷 분기) |
-| **SQLite** | 개발용 DB (PostgreSQL/MySQL 전환 가능) |
-| **pytest** | 테스트 프레임워크 |
+---
 
-## 프로젝트 구조
+## 왜 이 코드인가
+
+이 데모는 [jjunmo-fastapi-boilertemplate](https://github.com/jjunmo/jjunmo-fastapi-boilertemplate)을 기반으로,
+실제 서비스(`aiapp-service`)와 **동일한 아키텍처 패턴**을 따르도록 두 도메인(`account`, `board`)을 추가한 FastAPI 앱입니다.
+
+| 패턴 | 이 데모 | aiapp-service |
+|------|---------|---------------|
+| 계층 구조 | api → service → repository → model | router → service → repository → model |
+| 제네릭 리포지토리 | `BaseRepository[T]` | `BaseRepository` |
+| DI 방식 | 읽기/트랜잭션 분리 Type Alias | `ServiceDep` / `ServiceTransactionDep` |
+| 스택 | FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Alembic | 동일 |
+
+→ 그래서 이 데모의 지식 그래프 구조가 곧 우리 실제 서비스의 구조와 닮아 있습니다.
+
+## 무엇이 들어 있나
 
 ```
-fastapi-boilerplate/
-├── main.py                          # 앱 진입점
-├── requirements.txt
-├── .env.example
-├── alembic.ini
-│
-├── core/                            # @Configuration
-│   ├── config.py                    # Settings (ENVIRONMENT 분기 포함)
-│   ├── database.py                  # Sync + Async Engine, Session, DI generators
-│   └── logging.py                   # loguru 설정 (환경별 포맷, intercept handler)
-│
-├── middleware/                       # 미들웨어
-│   └── request_id.py               # X-Request-ID 자동 생성/전파
-│
-├── models/                          # @Entity
-│   └── base.py                      # DeclarativeBase + TimestampMixin
-│
-├── repositories/                    # @Repository
-│   ├── base_repository.py          # Sync Generic[T] CRUD
-│   └── async_base_repository.py    # Async Generic[T] CRUD
-│
-├── services/                        # @Service (도메인별 추가)
-│
-├── schemas/                         # DTO
-│   └── common.py                    # SuccessResponse, BasicErrorResponse
-│
-├── api/                             # @Controller (라우터 집약)
-│   ├── router.py                    # 모든 라우터 등록 (/api/v1 prefix)
-│   └── routes/
-│       └── health.py                # 헬스체크 예시
-│
-├── dependencies/                    # @Autowired DI
-│   ├── repositories.py             # Repository DI (가이드 포함)
-│   └── services.py                 # Service DI (가이드 포함)
-│
-├── exceptions/                      # @ControllerAdvice
-│   ├── error_codes.py              # ErrorCode Enum
-│   └── common.py                   # ServiceException Factory
-│
-├── util/
-│   └── time_util.py                # KST 시간 유틸
-│
-├── alembic/                         # DB 마이그레이션
-│   ├── env.py
-│   ├── script.py.mako
-│   └── versions/
-│
-└── tests/
-    ├── conftest.py                  # Sync/Async DB fixture, TestClient
-    └── api/
-        └── test_health.py           # 헬스체크 테스트 예시
+api/routes/account.py     회원가입 / 로그인 / 계정 조회
+api/routes/board.py       게시글 작성 / 목록 / 단건 조회
+services/account_service  회원 인증 비즈니스 로직 (ServiceException 활용)
+services/board_service    게시글 CRUD (작성자 검증 → account 도메인 참조)
+util/security.py          비밀번호 해싱 (데모용)
+models/account.py         Account 엔티티
+models/board.py           Board, Post 엔티티 (Post.author_id → Account)
 ```
 
-## 시작하기
+- **두 도메인 클러스터** (account / board) + **도메인 간 관계** (`Post.author_id → Account`)
+- 그래프에서 인증 흐름, 게시판 흐름, 둘 사이의 의존이 시각적으로 드러나도록 구성
 
-### 1. 환경 설정
+---
+
+## 도구 실행 방법 (데모 재현)
+
+Understand-Anything은 **Claude Code 플러그인**입니다. 이 repo를 분석 대상으로 아래를 실행합니다.
 
 ```bash
-# 가상환경 생성 및 활성화
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 환경 변수 설정
-cp .env.example .env
+# 0. 이 repo 클론
+git clone https://github.com/jjunmo/understand-anything-demo.git
+cd understand-anything-demo
 ```
 
-### 2. 의존성 설치
+Claude Code 안에서 (슬래시 명령):
 
 ```bash
+# 1. 플러그인 설치
+/plugin marketplace add Lum1104/Understand-Anything
+/plugin install understand-anything
+
+# 2. 코드베이스 분석 → .understand-anything/knowledge-graph.json 생성
+/understand --language ko
+
+# 3. 인터랙티브 대시보드 보기
+/understand-dashboard
+```
+
+### 데모 장면별 명령
+
+| 장면 | 명령 | 보여주는 것 |
+|------|------|------------|
+| 전체 지도 | `/understand-dashboard` | 계층·도메인 클러스터 전체 |
+| 의미 검색 | `/understand-chat 로그인 인증은 어디서 처리하나?` | account 클러스터 하이라이트 |
+| 가이드 투어 | `/understand-onboard` | 의존성 순서 학습 경로 |
+| 파일 설명 | `/understand-explain services/account_service.py` | 특정 파일 심층 설명 |
+| 도메인 매핑 | `/understand-domain` | 코드↔비즈니스 대응 |
+
+> 지원 언어: en(기본), zh, zh-TW, ja, **ko**, ru
+
+---
+
+## 앱 자체 실행 (선택)
+
+도구 분석은 정적 파싱이라 앱 실행이 필수는 아니지만, 직접 돌려보려면:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 3. 서버 실행
-
-```bash
+cp .env.example .env
 uvicorn main:app --reload
+# http://localhost:8000/docs 에서 Swagger 확인
 ```
 
-서버가 시작되면 http://localhost:8000/docs 에서 Swagger UI를 확인할 수 있다.
-
-## 핵심 패턴 설명
-
-### BaseRepository / AsyncBaseRepository 패턴
-
-`Generic[T]` 기반 공통 CRUD 추상화. 도메인별로 Sync/Async 선택 가능.
-
-- **Sync (`BaseRepository`)**: 단순 CRUD, CPU 바운드 작업
-- **Async (`AsyncBaseRepository`)**: 외부 API 호출, 동시 다발적 I/O 바운드 작업
-
-```python
-# Sync Repository 예시
-class TaskRepository(BaseRepository[Task]):
-    def __init__(self, db: Session):
-        super().__init__(Task, db)
-
-# Async Repository 예시
-class TaskAsyncRepository(AsyncBaseRepository[Task]):
-    def __init__(self, db: AsyncSession):
-        super().__init__(Task, db)
-```
-
-Repository에서는 `flush()`만 수행하고, `commit()`은 DI 레이어(`get_db_with_transaction`)가 자동 관리한다.
-
-### Type Alias DI 패턴
-
-읽기용(`get_db`)과 트랜잭션용(`get_db_with_transaction`) 세션을 분리하여 Type Alias로 DI를 구성한다.
-
-```python
-# dependencies/repositories.py
-TaskRepoDep = Annotated[TaskRepository, Depends(get_task_repository)]
-TaskRepoTransactionDep = Annotated[TaskRepository, Depends(get_task_repository_with_transaction)]
-```
-
-**네이밍 컨벤션:**
-
-| 구분 | Sync | Async |
-|------|------|-------|
-| 읽기용 Repo | `{Entity}RepoDep` | `{Entity}AsyncRepoDep` |
-| 트랜잭션 Repo | `{Entity}RepoTransactionDep` | `{Entity}AsyncRepoTransactionDep` |
-| 읽기용 Service | `{Entity}ServiceDep` | `{Entity}AsyncServiceDep` |
-| 트랜잭션 Service | `{Entity}ServiceTransactionDep` | `{Entity}AsyncServiceTransactionDep` |
-
-### ServiceException Factory 패턴
-
-비즈니스 예외를 팩토리 메서드로 생성. 글로벌 예외 핸들러가 JSON 응답으로 변환한다.
-
-```python
-raise ServiceException.not_found("카테고리를 찾을 수 없습니다")
-raise ServiceException.conflict("이미 존재하는 항목입니다")
-```
-
-## 새 기능 추가 절차 (8단계)
-
-`Task`라는 기능을 예시로 설명한다.
-
-### Step 1. Model 정의
-
-`models/` 디렉토리에 엔티티 모델 생성. `TimestampMixin`을 활용한다.
-
-### Step 2. Migration
+테스트:
 
 ```bash
-alembic revision --autogenerate -m "add task table"
-alembic upgrade head
-```
-
-### Step 3. Repository 생성
-
-`repositories/` 디렉토리에 `BaseRepository[Task]` (Sync) 또는 `AsyncBaseRepository[Task]` (Async) 상속.
-
-### Step 4. Repository DI 등록
-
-`dependencies/repositories.py`에 팩토리 함수 + Type Alias 추가.
-
-### Step 5. Service 생성
-
-`services/` 디렉토리에 비즈니스 로직 구현. `ServiceException` 팩토리 활용.
-
-### Step 6. Service DI 등록
-
-`dependencies/services.py`에 팩토리 함수 + Type Alias 추가.
-
-### Step 7. Schema 정의
-
-`schemas/` 디렉토리에 `Create`, `Update`, `Response` DTO 생성.
-
-### Step 8. Router 생성
-
-`api/routes/` 디렉토리에 라우터 생성 후 `api/router.py`에 등록.
-
-```python
-# api/router.py
-from api.routes import health, task
-
-api_router = APIRouter(prefix="/api/v1")
-api_router.include_router(health.router)
-api_router.include_router(task.router)  # 추가
-```
-
-## 환경 설정
-
-`.env` 파일로 환경 변수를 관리한다.
-
-| 변수 | 설명 | 기본값 |
-|------|------|--------|
-| `DATABASE_URL` | DB 연결 문자열 | `sqlite:///./app.db` |
-| `APP_NAME` | 앱 이름 | `jjunmo-fastapi` |
-| `APP_VERSION` | 앱 버전 | `0.1.0` |
-| `ENVIRONMENT` | 환경 (`local`/`staging`/`production`) | `local` |
-| `LOG_LEVEL` | 로그 레벨 | `DEBUG` |
-| `CORS_ORIGINS` | 허용 Origins (JSON 배열) | `["http://localhost:3000","http://localhost:8000"]` |
-
-### ENVIRONMENT 분기
-
-| 환경 | Swagger | SQL Echo | 로그 포맷 | 로그 레벨 |
-|------|---------|----------|-----------|-----------|
-| `local` | 활성 | 활성 | 컬러 콘솔 | DEBUG |
-| `staging` | 비활성 | 비활성 | JSON | INFO |
-| `production` | 비활성 | 비활성 | JSON | INFO |
-
-Async DB URL은 `core/config.py`의 `async_database_url` 프로퍼티가 sync URL에서 자동 생성한다:
-- `sqlite:///` → `sqlite+aiosqlite:///`
-- `postgresql://` → `postgresql+asyncpg://`
-- `mysql://` → `mysql+aiomysql://`
-
-## 로깅
-
-[loguru](https://github.com/Delgan/loguru) 기반 구조화 로깅. `core/logging.py`에서 설정을 초기화한다.
-
-- **InterceptHandler**: uvicorn, SQLAlchemy 등 표준 `logging` 사용 라이브러리의 로그를 loguru로 통합
-- **Request ID 자동 포함**: `middleware/request_id.py`에서 `logger.contextualize(request_id=...)`로 모든 로그에 자동 포함
-
-```python
-# Service/Repository에서 바로 사용
-from loguru import logger
-
-logger.info("작업 완료: {}", task_id)
-```
-
-## 테스트
-
-```bash
-# 전체 테스트 실행
 pytest tests/ -v
-
-# 특정 테스트 실행
-pytest tests/api/test_health.py -v
 ```
 
-테스트는 인메모리 SQLite를 사용하며, `tests/conftest.py`에서 DI override로 테스트 DB 세션을 주입한다.
+---
 
-## API 문서
+## 관련
 
-로컬 환경(`ENVIRONMENT=local`)에서만 활성화된다.
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+- 도구 원본: https://github.com/Lum1104/Understand-Anything
+- 기반 보일러템플릿: https://github.com/jjunmo/jjunmo-fastapi-boilertemplate
+- 라이브 데모(공식): https://understand-anything.com

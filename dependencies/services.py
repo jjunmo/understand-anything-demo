@@ -39,3 +39,52 @@ Async 예시:
         TaskAsyncService, Depends(get_task_async_service_transactional)
     ]
 """
+
+from typing import Annotated
+
+from fastapi import Depends
+
+from dependencies.repositories import (
+    AccountRepoDep,
+    AccountRepoTransactionDep,
+    PostRepoDep,
+    PostRepoTransactionDep,
+)
+from services.account_service import AccountService
+from services.board_service import BoardService
+
+
+# ── Account Service DI ──
+def get_account_service_read_only(account_repo: AccountRepoDep) -> AccountService:
+    return AccountService(account_repo=account_repo)
+
+
+def get_account_service_transactional(
+    account_repo: AccountRepoTransactionDep,
+) -> AccountService:
+    return AccountService(account_repo=account_repo)
+
+
+AccountServiceDep = Annotated[AccountService, Depends(get_account_service_read_only)]
+AccountServiceTransactionDep = Annotated[
+    AccountService, Depends(get_account_service_transactional)
+]
+
+
+# ── Board Service DI (Post + Account 조합) ──
+def get_board_service_read_only(
+    post_repo: PostRepoDep, account_repo: AccountRepoDep
+) -> BoardService:
+    return BoardService(post_repo=post_repo, account_repo=account_repo)
+
+
+def get_board_service_transactional(
+    post_repo: PostRepoTransactionDep, account_repo: AccountRepoTransactionDep
+) -> BoardService:
+    return BoardService(post_repo=post_repo, account_repo=account_repo)
+
+
+BoardServiceDep = Annotated[BoardService, Depends(get_board_service_read_only)]
+BoardServiceTransactionDep = Annotated[
+    BoardService, Depends(get_board_service_transactional)
+]

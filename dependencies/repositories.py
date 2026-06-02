@@ -43,3 +43,46 @@ Async 예시:
         TaskAsyncRepository, Depends(get_task_async_repository_with_transaction)
     ]
 """
+
+from typing import Annotated
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from core.database import get_db, get_db_with_transaction
+from repositories.account_repository import AccountRepository
+from repositories.post_repository import PostRepository
+
+
+# ── Account Repository DI ──
+def get_account_repository(db: Session = Depends(get_db)) -> AccountRepository:
+    return AccountRepository(db)
+
+
+def get_account_repository_with_transaction(
+    db: Session = Depends(get_db_with_transaction),
+) -> AccountRepository:
+    return AccountRepository(db)
+
+
+AccountRepoDep = Annotated[AccountRepository, Depends(get_account_repository)]
+AccountRepoTransactionDep = Annotated[
+    AccountRepository, Depends(get_account_repository_with_transaction)
+]
+
+
+# ── Post Repository DI ──
+def get_post_repository(db: Session = Depends(get_db)) -> PostRepository:
+    return PostRepository(db)
+
+
+def get_post_repository_with_transaction(
+    db: Session = Depends(get_db_with_transaction),
+) -> PostRepository:
+    return PostRepository(db)
+
+
+PostRepoDep = Annotated[PostRepository, Depends(get_post_repository)]
+PostRepoTransactionDep = Annotated[
+    PostRepository, Depends(get_post_repository_with_transaction)
+]
